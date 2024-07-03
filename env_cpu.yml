@@ -1,0 +1,43 @@
+name: ssl4eo
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9, <3.11
+  - pytorch
+  - cpuonly
+  - torchvision
+  - tqdm
+  - numpy<2.0
+  - numba
+  - einops
+  - wandb
+  - pytorch-lightning
+  - lightning-bolts
+  - torchmetrics
+  - scipy
+  - timm
+  - matplotlib
+  - seaborn
+  - pandas
+  - lightning
+  - umap-learn
+  - h5py
+  - cupy
+  - pkg-config
+  - libjpeg-turbo
+  - opencv
+  - ipykernel
+  - jupyterlab
+  - geopandas
+  - pip
+  - pip:
+      - pytest
+      - lightly
+      - ipdb
+      - geobench
+      - black
+      - ffcv
+      - kornia
+      - contextily
