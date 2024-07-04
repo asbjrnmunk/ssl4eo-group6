@@ -159,7 +159,7 @@ class FinetuneEvalClassifier(LinearClassifier):
         parameters += self.model.parameters()
         optimizer = SGD(
             parameters,
-            lr=0.05 * self.batch_size_per_device * self.trainer.world_size / 256,
+            lr=0.01 * self.batch_size_per_device * self.trainer.world_size / 256,
             momentum=0.9,
             weight_decay=0.0,
         )
@@ -182,7 +182,7 @@ class FinetuneMultiLabelClassifier(LinearMultiLabelClassifier):
         parameters += self.model.parameters()
         optimizer = SGD(
             parameters,
-            lr=0.05 * self.batch_size_per_device * self.trainer.world_size / 256,
+            lr=0.01 * self.batch_size_per_device * self.trainer.world_size / 256,
             momentum=0.9,
             weight_decay=0.0,
         )
@@ -195,3 +195,4 @@ class FinetuneMultiLabelClassifier(LinearMultiLabelClassifier):
             "interval": "step",
         }
         return [optimizer], [scheduler]
+
