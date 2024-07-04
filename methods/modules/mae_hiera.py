@@ -13,7 +13,7 @@ from lightly.utils.dist import print_rank_zero
 from lightly.utils.scheduler import CosineWarmupScheduler
 from pytorch_lightning import LightningModule
 from torch import Tensor
-from torch.nn import Module
+from torch.nn import Module, Identity
 from torch.optim import AdamW
 
 
@@ -65,6 +65,8 @@ class MAEHiera(LightningModule):
             raise ValueError(f"Backbone {backbone} not found")
 
         self.model: MaskedAutoencoderHiera = model_cls(in_chans=in_channels)
+        self.model.head = Identity()
+        self.model.norm = Identity()
 
         if img_size != self.model.tokens_spatial_shape[0] * self.model.patch_stride[0]:
             raise ValueError(
@@ -75,6 +77,7 @@ class MAEHiera(LightningModule):
         self.img_size = img_size
         self.mask_ratio = mask_ratio
         self.feature_dim = self.model.encoder_norm.weight.shape[0]
+        self.last_backbone_channel = self.feature_dim
 
         self.has_online_classifier = has_online_classifier
         if has_online_classifier:
@@ -88,7 +91,13 @@ class MAEHiera(LightningModule):
         # ensuring that the img size requirements are met (this should only be triggered for offline eval)
         if x.shape[2] != self.img_size or x.shape[3] != self.img_size:
             x = F.interpolate(x, self.img_size)
-        return self.forward_encoder(x, mask_ratio=0.0)[-1]
+        
+        _, intermediates = super(MaskedAutoencoderHiera, self.model).forward(
+            x, return_intermediates=True
+        )
+        features = intermediates[-1].mean(dim=(1, 2))
+        return features
+
 
     def forward_encoder(
         self, x: torch.Tensor, mask_ratio: float, mask: torch.Tensor | None = None
@@ -133,7 +142,7 @@ class MAEHiera(LightningModule):
         # Online linear evaluation.
         if self.has_online_classifier:
             targets = batch[1]
-            features = last_intermediate.mean(dim=(1, 2, 3))
+            features = last_intermediate.mean(dim=(1, 2)) # pooling over spatial dimensions
 
             cls_loss, cls_log = self.online_classifier.training_step(
                 (features.detach(), targets), batch_idx
@@ -150,7 +159,7 @@ class MAEHiera(LightningModule):
                 images = F.interpolate(images, self.img_size)
 
             targets = batch[1]
-            cls_features = self.forward(images).mean(dim=(1, 2, 3))
+            cls_features = self.forward(images)
             cls_loss, cls_log = self.online_classifier.validation_step(
                 (cls_features.detach(), targets), batch_idx
             )
@@ -196,3 +205,4 @@ class MAEHiera(LightningModule):
             "interval": "step",
         }
         return [optimizer], [scheduler]
+
