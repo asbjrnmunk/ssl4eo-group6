@@ -140,6 +140,10 @@ class MAE(LightningModule):
         # must adjust idx_mask for missing class token
         target = utils.get_at_index(patches, idx_mask - 1)
 
+        mean = target.mean(dim=-1, keepdim=True)
+        var = target.var(dim=-1, keepdim=True)
+        target = (target - mean) / (var + 1.e-6)**.5
+
         loss = self.criterion(predictions, target)
         self.log(
             "train_loss", loss, prog_bar=True, sync_dist=True, batch_size=len(images)
