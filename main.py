@@ -180,6 +180,19 @@ parser.add_argument(
     action="store_true",
     help="If set, run in debug mode (for code checking).",
 )
+parser.add_argument(
+    "--lr",
+    type=float,
+    default=0.07,
+    help="Learning rate for the linear evaluation (default: 0.07).",
+
+)
+parser.add_argument(
+    "--disable-norm-pix-loss",
+    action="store_true",
+    help="If set, the pixel loss will not be normalized.",
+)
+
 
 METHODS = {
     "barlowtwins": {
@@ -240,6 +253,8 @@ def main(
     geobench_eval_method: str,
     ckpt_path: Union[Path, None],
     no_ffcv: bool,
+    lr: float = 0.07,
+    disable_norm_pix_loss: bool = False,
     debug: bool = False,
 ) -> LightningModule:
     if data_dir is None:
@@ -292,6 +307,7 @@ def main(
             has_online_classifier=target is not None,
             train_transform=METHODS[method]["transform"],
             last_backbone_channel=last_backbone_channel,
+            norm_pix_loss=not disable_norm_pix_loss
         )
 
         # Compile the model if PyTorch supports it
@@ -366,6 +382,7 @@ def main(
                         precision=precision,
                         no_ffcv=no_ffcv,
                         debug=debug,
+                        lr=lr
                     )
                 else:
                     raise NotImplementedError(

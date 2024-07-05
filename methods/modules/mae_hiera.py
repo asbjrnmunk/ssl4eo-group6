@@ -13,7 +13,7 @@ from lightly.utils.dist import print_rank_zero
 from lightly.utils.scheduler import CosineWarmupScheduler
 from pytorch_lightning import LightningModule
 from torch import Tensor
-from torch.nn import Module, Identity
+from torch.nn import Module, Identity, LayerNorm
 from torch.optim import AdamW
 
 
@@ -43,6 +43,7 @@ class MAEHiera(LightningModule):
         has_online_classifier: bool,
         train_transform: Module,
         mask_ratio: float = 0.75,
+        norm_pix_loss: bool = True,
         last_backbone_channel: int = None,
     ):
         assert (
@@ -78,6 +79,7 @@ class MAEHiera(LightningModule):
         self.mask_ratio = mask_ratio
         self.feature_dim = self.model.encoder_norm.weight.shape[0]
         self.last_backbone_channel = self.feature_dim
+        self.norm_pix_loss = norm_pix_loss
 
         self.has_online_classifier = has_online_classifier
         if has_online_classifier:
@@ -124,6 +126,28 @@ class MAEHiera(LightningModule):
         last_intermediate = intermediates[-1]
         return x, mask, last_intermediate
 
+    def forward_loss(
+        self, x: torch.Tensor, pred: torch.Tensor, mask: torch.Tensor, norm: bool = True
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Note: in mask, 0 is *visible*, 1 is *masked*
+
+        x: e.g. [B, 3, H, W]
+        pred: [B * num_pred_tokens, num_pixels_in_pred_patch * in_chans]
+        label: [B * num_pred_tokens, num_pixels_in_pred_patch * in_chans]
+        """
+        if len(self.model.q_stride) == 2:
+            label = self.model.get_pixel_label_2d(x, mask, norm=norm)
+        elif len(self.model.q_stride) == 3:
+            label = self.model.get_pixel_label_3d(x, mask, norm=norm)
+        else:
+            raise NotImplementedError
+
+        pred = pred[mask]
+        loss = (pred - label) ** 2
+
+        return loss.mean(), pred, label
+    
     def training_step(self, batch: Dict, batch_idx: int) -> Tensor:
         images = batch[0]
         # Create views
@@ -135,15 +159,14 @@ class MAEHiera(LightningModule):
             latent, mask
         )  # pred_mask is mask at resolution of *prediction*
 
-        loss, _, _ = self.model.forward_loss(images, pred, ~pred_mask)
+        loss, _, _ = self.forward_loss(images, pred, ~pred_mask, norm=self.norm_pix_loss)
 
         self.log("train_loss", loss, prog_bar=True, sync_dist=True, batch_size=len(images))
 
         # Online linear evaluation.
         if self.has_online_classifier:
             targets = batch[1]
-            features = last_intermediate.mean(dim=(1, 2)) # pooling over spatial dimensions
-
+            features = last_intermediate.mean(dim=(1, 2, 3)) # pooling over spatial dimensions
             cls_loss, cls_log = self.online_classifier.training_step(
                 (features.detach(), targets), batch_idx
             )

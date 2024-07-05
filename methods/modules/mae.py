@@ -29,6 +29,7 @@ class MAE(LightningModule):
         has_online_classifier: bool,
         train_transform: Module,
         last_backbone_channel: int = None,
+        norm_pix_loss: bool = True,
     ):
         assert (
             "vit" in backbone or backbone == "default"
@@ -63,6 +64,7 @@ class MAE(LightningModule):
         )
 
         self.last_backbone_channel = vit.embed_dim
+        self.norm_pix_loss = norm_pix_loss
 
         decoder_embed_dim = 512
         self.mask_ratio = 0.75
@@ -140,9 +142,10 @@ class MAE(LightningModule):
         # must adjust idx_mask for missing class token
         target = utils.get_at_index(patches, idx_mask - 1)
 
-        mean = target.mean(dim=-1, keepdim=True)
-        var = target.var(dim=-1, keepdim=True)
-        target = (target - mean) / (var + 1.e-6)**.5
+        if self.norm_pix_loss:
+            mean = target.mean(dim=-1, keepdim=True)
+            var = target.var(dim=-1, keepdim=True)
+            target = (target - mean) / (var + 1.e-6)**.5
 
         loss = self.criterion(predictions, target)
         self.log(

@@ -19,8 +19,10 @@ class LinearClassifier(LightningLinearClassifier):
         topk: Tuple[int, ...] = (1, 5),
         freeze_model: bool = False,
         train_transform: nn.Module = None,
+        lr: float = 0.07,
     ):
         super().__init__(model, batch_size_per_device, feature_dim, num_classes, topk, freeze_model)
+        self.lr = lr
         self.train_transform = nn.Sequential() if train_transform is None else train_transform
 
     def training_step(self, batch: Tuple[Tensor, ...], batch_idx: int) -> Tensor:
@@ -51,6 +53,7 @@ class LinearMultiLabelClassifier(LinearClassifier):
         num_classes: int,
         freeze_model: bool,
         train_transform: nn.Module = None,
+        **kwargs
     ):
         super().__init__(
             model, batch_size_per_device, feature_dim, num_classes, (-1,), freeze_model, train_transform
@@ -159,7 +162,7 @@ class FinetuneEvalClassifier(LinearClassifier):
         parameters += self.model.parameters()
         optimizer = SGD(
             parameters,
-            lr=0.01 * self.batch_size_per_device * self.trainer.world_size / 256,
+            lr=self.lr * self.batch_size_per_device * self.trainer.world_size / 256,
             momentum=0.9,
             weight_decay=0.0,
         )
@@ -182,7 +185,7 @@ class FinetuneMultiLabelClassifier(LinearMultiLabelClassifier):
         parameters += self.model.parameters()
         optimizer = SGD(
             parameters,
-            lr=0.01 * self.batch_size_per_device * self.trainer.world_size / 256,
+            lr=self.lr * self.batch_size_per_device * self.trainer.world_size / 256,
             momentum=0.9,
             weight_decay=0.0,
         )

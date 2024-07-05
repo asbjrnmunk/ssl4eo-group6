@@ -31,6 +31,7 @@ def geobench_clf_eval(
     devices: int,
     precision: str,
     no_ffcv: bool,
+    lr: float = 0.07,
     debug: [bool, str] = False,
 ) -> None:
     """Runs a linear evaluation on the given model.
@@ -122,6 +123,7 @@ def geobench_clf_eval(
         num_classes=task.label_type.n_classes,
         batch_size_per_device=batch_size_per_device,
         train_transform=train_transform,
+        lr=lr
     )
 
     trainer.fit(
@@ -160,6 +162,7 @@ def get_geobench_classifier(
     num_classes: int,
     batch_size_per_device: int,
     train_transform: Module,
+    lr: float = 0.07
 ):
     if method == "linear":
         # if dataset is multi-label, we need a different classifier class
@@ -177,5 +180,6 @@ def get_geobench_classifier(
         num_classes=num_classes,
         freeze_model=method == "linear",
         train_transform=train_transform,
+        lr=lr
     )
     return classifier
